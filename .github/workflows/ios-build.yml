@@ -1,0 +1,63 @@
+
+name: MISBAH PENAL iOS Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build iOS IPA
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Check Xcode
+        run: xcodebuild -version
+
+      - name: Build app
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ThreeOneOSFive.xcodeproj \
+            -scheme 3105 \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Package unsigned IPA
+        if: success()
+        run: |
+          set -e
+          APP="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/3105.app"
+          test -d "$APP"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload" artifacts
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/3105.app"
+          cd "$RUNNER_TEMP/ipa"
+          zip -qry "$GITHUB_WORKSPACE/artifacts/MISBAH-PENAL-unsigned.ipa" Payload
+
+      - name: Upload IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MISBAH-PENAL-IPA
+          path: artifacts/MISBAH-PENAL-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MISBAH-PENAL-build-log
+          path: ${{ runner.temp }}/build.log
+          if-no-files-found: ignore
